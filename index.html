@@ -690,6 +690,11 @@
                 gattServer = await bluetoothDevice.gatt.connect();
                 log('Connected to GATT Server.', 'success');
 
+                // *** CRITICAL CHANGE: Introduce a small delay here ***
+                // This gives the Android Bluetooth stack and the peripheral a moment to settle.
+                log('Waiting briefly for GATT services to stabilize...');
+                await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 500ms (adjust as needed)
+
                 log(`Getting Radio Service (UUID: ${RADIO_SERVICE_UUID})...`);
                 radioService = await gattServer.getPrimaryService(RADIO_SERVICE_UUID);
                 log('Radio Service obtained.', 'success');
