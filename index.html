@@ -390,6 +390,19 @@
         <div id="radioStatus" style="position: absolute; z-index: 1000; top: 160px; left: 56px; right: 50px; text-align: center; color: lightgray">
             Disconnected
         </div>
+        <div id="radiovfo1" style="position: absolute; z-index: 1001; top: 122px; left: 56px; right: 50px; height: 32px; text-align: left; color: lightgray; font-size: 24px">
+        </div>
+        <div id="radiovfo1a" style="position: absolute; z-index: 900; top: 152px; left: 56px; right: 50px; height: 12px; text-align: left; color: lightgray; font-size: 10px">
+        </div>
+        <div id="radiovfo1b" style="position: absolute; z-index: 900; top: 152px; left: 56px; right: 50px; height: 12px; text-align: right; color: lightgray; font-size: 10px">
+        </div>
+        <div id="radiovfoline" style="display:none; position: absolute; z-index: 900; top: 161px; left: 56px; right: 50px; height: 12px; border-bottom: 2px dotted gray; "></div>
+        <div id="radiovfo2" style="position: absolute; z-index: 1001; top: 170px; left: 56px; right: 50px; height: 32px; text-align: left; color: lightgray; font-size: 24px">
+        </div>
+        <div id="radiovfo2a" style="position: absolute; z-index: 900; top: 200px; left: 56px; right: 50px; height: 12px; text-align: left; color: lightgray; font-size: 10px">
+        </div>
+        <div id="radiovfo2b" style="position: absolute; z-index: 900; top: 200px; left: 56px; right: 50px; height: 12px; text-align: right; color: lightgray; font-size: 10px">
+        </div>
         <div id="rssi" style="position: absolute; z-index: 1000; top: 220px; left: 56px; right: 50px; height: 4px">
             <div id="rssi2" style="width:0%; height:4px; background-color: white"></div>
         </div>
@@ -542,6 +555,7 @@
         var radioDevInfo = null;
         var radioHtStatus = null;
         var radioChannels = null;
+        var radioSettings = null;
 
         const aprsDiv = document.getElementById('aprs');
         const statusDiv = document.getElementById('status');
@@ -554,6 +568,13 @@
         const radioStatusDiv = document.getElementById('radioStatus');
         const rssiDiv = document.getElementById('rssi2');
         const radioChannelsDiv = document.getElementById('radioChannels');
+        const radiovfo1 = document.getElementById('radiovfo1');
+        const radiovfo1a = document.getElementById('radiovfo1a');
+        const radiovfo1b = document.getElementById('radiovfo1b');
+        const radiovfoline = document.getElementById('radiovfoline');
+        const radiovfo2 = document.getElementById('radiovfo2');
+        const radiovfo2a = document.getElementById('radiovfo2a');
+        const radiovfo2b = document.getElementById('radiovfo2b');
         
         // Get menu bar elements
         const menuConnect = document.getElementById('menuConnect');
@@ -721,7 +742,8 @@
 
                 // Send commands to subscribe to events & get initial state
                 SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.GET_DEV_INFO, 3);
-
+                SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.READ_SETTINGS, null);
+                SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.GET_HT_STATUS, null);
             } catch (error) {
                 log(`Error: ${error.message}`, 'error');
                 if (error.name === "NotFoundError") {
@@ -794,6 +816,9 @@
             sendAprsButton.disabled = true; // Disable APRS send button on disconnect
             leftColumnConnectButton.style.display = 'block';
             rssiDiv.style['width'] = '0%';
+            radiovfo1.textContent = radiovfo1a.textContent = radiovfo1b.textContent = '';
+            radiovfo2.textContent = radiovfo2a.textContent = radiovfo2b.textContent = '';
+            radiovfoline.style.display = 'none';
             radioStatusDiv.textContent = 'Disconnected';
             radioChannelsDiv.style.display = 'none';
             radioChannelsDiv.innerHTML = null;
@@ -811,6 +836,7 @@
             radioDevInfo = null;
             radioHtStatus = null;
             radioChannels = null;
+            radioSettings = null;
         }
 
         function handleNotifications(event) {
@@ -834,12 +860,30 @@
                             var channel = new RadioChannelInfo(receivedData);
                             radioChannels[channel.channel_id] = channel;
                             if (channel.channel_id == (radioDevInfo.channel_count - 1)) { updateChannels(); }
+                            updateRadioDisplay();
+                            break;
+                        case RadioBasicCommand.READ_SETTINGS:
+                            log(`Settings`);
+                            radioSettings = new RadioSettings(receivedData);
+                            updateRadioDisplay();
+                            break;
+                        case RadioBasicCommand.GET_HT_STATUS:
+                            log(`GET_HT_STATUS`);
+                            radioHtStatus = new RadioHtStatus(receivedData);
+                            rssiDiv.style['width'] = ((radioHtStatus.rssi * 100) / 15) + '%'; // Change RSSI bar
+                            updateRadioDisplay();
                             break;
                         case RadioBasicCommand.EVENT_NOTIFICATION:
                             switch (receivedData[4]) {
                                 case RadioNotification.HT_STATUS_CHANGED:
+                                    log(`HTStatus`);
                                     radioHtStatus = new RadioHtStatus(receivedData);
                                     rssiDiv.style['width'] = ((radioHtStatus.rssi * 100) / 15) + '%'; // Change RSSI bar
+                                    updateRadioDisplay();
+                                    break;
+                                case RadioNotification.HT_SETTINGS_CHANGED:
+                                    radioSettings = new RadioSettings(receivedData);
+                                    updateRadioDisplay();
                                     break;
                                 default:
                                     log(`Unknown Event: ${receivedData[4]}`, 'data');
@@ -866,6 +910,7 @@
         function updateChannels() {
             var html = '', channelCount = 0;
             radioStatusDiv.textContent = '';
+            radiovfoline.style.display = '';
             for (var i = 0; i < radioChannels.length; i++) {
                 var channel = radioChannels[i];
                 var channelName = channel.name_str;
@@ -880,6 +925,23 @@
             }
             radioChannelsDiv.innerHTML = html;
             //radioChannelsDiv.style.height = channelBoxMaxHeight;
+        }
+
+        function updateRadioDisplay() {
+            //log(`updateRadioDisplay ${radioStatusDiv.textContent != ''}, ${radioHtStatus == null}, ${radioSettings == null}`);
+            if ((radioStatusDiv.textContent != '') || (radioHtStatus == null) || (radioSettings == null)) return;
+            radioChannelsDiv.style.display = 'absolute';
+            //radioChannels[radioHtStatus.curr_ch_id]
+
+            var c1 = radioChannels[radioSettings.channel_a];
+            var c2 = radioChannels[radioSettings.channel_b];
+            radiovfo1.textContent = c1.name_str;
+            radiovfo2.textContent = c2.name_str;
+            radiovfo1a.textContent = (c1.rx_freq / 1000000).toFixed(3) + "Mhz";
+            radiovfo2a.textContent = (c2.rx_freq / 1000000).toFixed(3) + "Mhz";
+
+            //radiovfo1.textContent = radiovfo1a.textContent = radiovfo1b.textContent = '';
+            //radiovfo2.textContent = radiovfo2a.textContent = radiovfo2b.textContent = '';
         }
 
         function selectChannel(c) {
