@@ -546,11 +546,13 @@
         const RADIO_WRITE_UUID = "00001101-d102-11e1-9b23-00025b00a5a5";
         const RADIO_INDICATE_UUID = "00001102-d102-11e1-9b23-00025b00a5a5";
 
-        let bluetoothDevice = null;
-        let radioService = null;
-        let writeCharacteristic = null;
-        let indicateCharacteristic = null;
-        let gattServer = null;
+        var websocketMode = false;
+        var websocket = null;
+        var bluetoothDevice = null;
+        var radioService = null;
+        var writeCharacteristic = null;
+        var indicateCharacteristic = null;
+        var gattServer = null;
 
         var radioDevInfo = null;
         var radioHtStatus = null;
@@ -682,9 +684,60 @@
             return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
         }
 
+        function setupWebSocket() {
+            websocket = new WebSocket("/websocket.aspx");
+            websocket.binaryType = "arraybuffer";
+            websocket.onerror = (event) => { log('Websocket error', 'error'); onDisconnected(); websocket = null; };
+            websocket.onopen = (event) => { log('Websocket connected', 'success'); };
+            websocket.onclose = (event) => { log('Websocket closed', 'success'); websocket = null; radioStatusDiv.textContent = 'Websocket...'; };
+            websocket.onmessage = (event) => {
+                //log('Websocket message: ' + JSON.stringify(event.data), 'success');
+                if (typeof event.data === 'string') {
+                    if (event.data.startsWith("log:")) {
+                        log(event.data.substring(4), 'success');
+                    }
+                    if (event.data == "disconnected") { onDisconnected(); }
+                    if (event.data == "connecting") {
+                        // Update button states
+                        menuConnect.classList.add('disabled');
+                        leftColumnConnectButton.style.display = 'none'; // Hide when connecting/connected
+                        menuSendCommand.classList.add('disabled'); // NEW: Disable send command option during connection setup
+                        sendAprsButton.disabled = true; // Disable APRS send button during connection setup
+                        radioStatusDiv.textContent = 'Connecting...';
+                    }
+                    if ((event.data == "connected") || (event.data == "wasconnected")) {
+                        radioStatusDiv.textContent = 'Connecting...';
+                        menuConnect.classList.add('disabled');
+                        leftColumnConnectButton.style.display = 'none'; // Hide when connecting/connected
+                        menuSendCommand.classList.add('disabled'); // NEW: Disable send command option during connection setup
+                        sendAprsButton.disabled = true; // Disable APRS send button during connection setup
+                        menuDisconnect.classList.remove('disabled');
+                        modalSendCommandButton.disabled = false; // NEW: Enable modal send command button
+                        menuSendCommand.classList.remove('disabled'); // NEW: Enable send command option in menu
+                        sendAprsButton.disabled = false; // Enable APRS send button on successful connection
+                        radioChannelsDiv.style.display = 'flex';
+                        log('Device connected and ready.', 'success');
+
+                        if (event.data == "wasconnected") {
+                            // Send commands to subscribe to events & get initial state
+                            SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.GET_DEV_INFO, 3);
+                            SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.READ_SETTINGS, null);
+                            SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.GET_HT_STATUS, null);
+                        }
+                    }
+                } else { // This is binary data
+                    handleNotificationsEx(new Uint8Array(event.data));
+                }
+            };
+        }
+
         // Centralized connect/disconnect logic to be called from both buttons and menu
         async function initiateConnect() {
             clearLogs();
+
+            // in websocket mode, just send the connect command
+            if (websocketMode) { websocket.send('connect'); return; }
+
             if (!navigator.bluetooth) {
                 log('Web Bluetooth API is not available in this browser!', 'error');
                 return;
@@ -762,10 +815,15 @@
         const bluetoothCommandQueue = new BluetoothCommandQueue();
 
         function writeToCharacteristic(data) {
-            return bluetoothCommandQueue.enqueue(() => {
+            if (websocketMode) {
                 const buffer = new Uint8Array(data).buffer;
-                return writeCharacteristic.writeValueWithResponse(buffer);
-            });
+                websocket.send(buffer);
+            } else {
+                return bluetoothCommandQueue.enqueue(() => {
+                    const buffer = new Uint8Array(data).buffer;
+                    return writeCharacteristic.writeValueWithResponse(buffer);
+                });
+            }
         }
 
         function SendCommand(group, cmd, data)
@@ -774,6 +832,11 @@
         }
 
         async function initiateDisconnect() {
+            // in websocket mode, just send the disconnect command
+            if (websocketMode) {
+                websocket.send('disconnect'); return;
+            }
+
             if (!bluetoothDevice || !bluetoothDevice.gatt.connected) {
                 log('Device not connected.', 'info');
                 return;
@@ -842,6 +905,10 @@
         function handleNotifications(event) {
             const value = event.target.value; // This is a DataView
             const receivedData = new Uint8Array(value.buffer)
+            handleNotificationsEx(receivedData);
+        }
+
+        function handleNotificationsEx(receivedData) {
             const group = (receivedData[0] << 8) + receivedData[1];
             const cmd = ((receivedData[2] & 0x7F) << 8) + receivedData[3];
             switch (group) {
@@ -892,13 +959,13 @@
                             break;
                         default:
                             log(`Group: ${group}, Cmd: ${cmd}`);
-                            log(`Notification received: ${arrayBufferToHexString(value.buffer)}`, 'data');
+                            log(`Notification received: ${arrayBufferToHexString(receivedData)}`, 'data');
                             break;
                     }
                     break;
                 case RadioCommandGroup.EXTENDED:
                     log(`Group: ${group}, Cmd: ${cmd}`);
-                    log(`Notification received: ${arrayBufferToHexString(value.buffer)}`, 'data');
+                    log(`Notification received: ${arrayBufferToHexString(receivedData)}`, 'data');
                     break;
             }
 
@@ -1177,6 +1244,8 @@
             modalSendCommandButton.disabled = true;
             sendAprsButton.disabled = true;
         });
+
+        if (websocketMode) { radioStatusDiv.textContent = 'Websocket...'; setupWebSocket(); }
     </script>
 </body>
 </html>
