@@ -689,7 +689,15 @@
             websocket.binaryType = "arraybuffer";
             websocket.onerror = (event) => { log('Websocket error', 'error'); onDisconnected(); websocket = null; };
             websocket.onopen = (event) => { log('Websocket connected', 'success'); };
-            websocket.onclose = (event) => { log('Websocket closed', 'success'); websocket = null; radioStatusDiv.textContent = 'Websocket...'; };
+            websocket.onclose = (event) => {
+                log('Websocket closed', 'success');
+                websocket = null;
+                radioStatusDiv.textContent = 'Websocket...';
+                menuConnect.classList.add('disabled');
+                menuDisconnect.classList.add('disabled');
+                leftColumnConnectButton.style.display = 'none'; // Hide when connecting/connected
+                setTimeout(setupWebSocket, 5000);
+            };
             websocket.onmessage = (event) => {
                 //log('Websocket message: ' + JSON.stringify(event.data), 'success');
                 if (typeof event.data === 'string') {
@@ -701,7 +709,7 @@
                         // Update button states
                         menuConnect.classList.add('disabled');
                         leftColumnConnectButton.style.display = 'none'; // Hide when connecting/connected
-                        menuSendCommand.classList.add('disabled'); // NEW: Disable send command option during connection setup
+                        menuSendCommand.classList.add('disabled'); // Disable send command option during connection setup
                         sendAprsButton.disabled = true; // Disable APRS send button during connection setup
                         radioStatusDiv.textContent = 'Connecting...';
                     }
@@ -709,11 +717,11 @@
                         radioStatusDiv.textContent = 'Connecting...';
                         menuConnect.classList.add('disabled');
                         leftColumnConnectButton.style.display = 'none'; // Hide when connecting/connected
-                        menuSendCommand.classList.add('disabled'); // NEW: Disable send command option during connection setup
+                        menuSendCommand.classList.add('disabled'); // Disable send command option during connection setup
                         sendAprsButton.disabled = true; // Disable APRS send button during connection setup
                         menuDisconnect.classList.remove('disabled');
-                        modalSendCommandButton.disabled = false; // NEW: Enable modal send command button
-                        menuSendCommand.classList.remove('disabled'); // NEW: Enable send command option in menu
+                        modalSendCommandButton.disabled = false; // Enable modal send command button
+                        menuSendCommand.classList.remove('disabled'); // Enable send command option in menu
                         sendAprsButton.disabled = false; // Enable APRS send button on successful connection
                         radioChannelsDiv.style.display = 'flex';
                         log('Device connected and ready.', 'success');
@@ -996,19 +1004,64 @@
 
         function updateRadioDisplay() {
             //log(`updateRadioDisplay ${radioStatusDiv.textContent != ''}, ${radioHtStatus == null}, ${radioSettings == null}`);
-            if ((radioStatusDiv.textContent != '') || (radioHtStatus == null) || (radioSettings == null)) return;
+            if ((radioStatusDiv.textContent != '') || (radioHtStatus == null) || (radioSettings == null)) {
+                radiovfo1.textContent = radiovfo1a.textContent = radiovfo1b.textContent = '';
+                radiovfo2.textContent = radiovfo2a.textContent = radiovfo2b.textContent = '';
+                return;
+            }
             radioChannelsDiv.style.display = 'absolute';
-            //radioChannels[radioHtStatus.curr_ch_id]
 
             var c1 = radioChannels[radioSettings.channel_a];
             var c2 = radioChannels[radioSettings.channel_b];
-            radiovfo1.textContent = c1.name_str;
-            radiovfo2.textContent = c2.name_str;
-            radiovfo1a.textContent = (c1.rx_freq / 1000000).toFixed(3) + "Mhz";
-            radiovfo2a.textContent = (c2.rx_freq / 1000000).toFixed(3) + "Mhz";
+            if (radioSettings.scan) { c2 = radioChannels[radioHtStatus.curr_ch_id]; }
 
-            //radiovfo1.textContent = radiovfo1a.textContent = radiovfo1b.textContent = '';
-            //radiovfo2.textContent = radiovfo2a.textContent = radiovfo2b.textContent = '';
+            if (c1.name_str != "") {
+                radiovfo1.textContent = c1.name_str;
+                radiovfo1a.textContent = (c1.rx_freq / 1000000).toFixed(3) + "Mhz";
+            } else {
+                radiovfo1.textContent = "Empty";
+                radiovfo1a.textContent = "";
+            }
+
+            if ((radioSettings.double_channel == 1) || (radioSettings.scan)) {
+                radiovfo2.textContent = c2.name_str;
+                radiovfo2a.textContent = (c2.rx_freq / 1000000).toFixed(3) + "Mhz";
+            } else {
+                radiovfo2.textContent = "";
+                radiovfo2a.textContent = "";
+            }
+
+            radiovfo2b.textContent = (radioSettings.scan) ? "Scanning..." : "";
+
+            if (radioSettings.double_channel == 1) {
+                if ((radioHtStatus.is_in_rx || radioHtStatus.is_in_tx) && (radioHtStatus.curr_ch_id == radioSettings.channel_id)) {
+                    radiovfo1.style['color'] = radiovfo1a.style['color'] = 'lightgray';
+                    radiovfo2.style['color'] = radiovfo2a.style['color'] = '#FA8072';
+                } else {
+                    radiovfo1.style['color'] = radiovfo1a.style['color'] = '#FA8072';
+                    radiovfo2.style['color'] = radiovfo2a.style['color'] = 'lightgray';
+                }
+            } else {
+                radiovfo1.style['color'] = radiovfo1a.style['color'] = 'lightgray';
+                radiovfo2.style['color'] = radiovfo2a.style['color'] = 'lightgray';
+            }
+            /*
+            // Update the colors
+            if ((channelB != null) && (radio.State == Radio.RadioState.Connected) && (radio.HtStatus != null) && (radio.HtStatus.double_channel == RadioChannelType.A)) {
+                if ((radio.HtStatus.is_in_rx || radio.HtStatus.is_in_tx) && (radio.HtStatus.curr_ch_id == channelB.channel_id)) {
+                    vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.LightGray;
+                    vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.Salmon;
+                }
+                else {
+                    vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.Salmon;
+                    vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.LightGray;
+                }
+            }
+            else {
+                vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.LightGray;
+                vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.LightGray;
+            }
+            */
         }
 
         function selectChannel(c) {
