@@ -823,6 +823,7 @@
         const bluetoothCommandQueue = new BluetoothCommandQueue();
 
         function writeToCharacteristic(data) {
+            //log(`writeToCharacteristic: ${arrayBufferToHexString(data)}`, 'data');
             if (websocketMode) {
                 const buffer = new Uint8Array(data).buffer;
                 websocket.send(buffer);
@@ -836,7 +837,12 @@
 
         function SendCommand(group, cmd, data)
         {
-            writeToCharacteristic(new Uint8Array([0, group, 0, cmd, data]));
+            if ((typeof data == 'object') && (data != null)) {
+                var header = new Uint8Array([0, group, 0, cmd]);
+                writeToCharacteristic(Uint8Array.from([...header, ...data]));
+            } else {
+                writeToCharacteristic(new Uint8Array([0, group, 0, cmd, data]));
+            }
         }
 
         async function initiateDisconnect() {
@@ -965,6 +971,9 @@
                                     break;
                             }
                             break;
+                        case RadioBasicCommand.WRITE_SETTINGS:
+                            if (receivedData[4] != 0) { log("WRITE_SETTINGS ERROR: " + receivedData[4], 'error'); }
+                            break;
                         default:
                             log(`Group: ${group}, Cmd: ${cmd}`);
                             log(`Notification received: ${arrayBufferToHexString(receivedData)}`, 'data');
@@ -1045,27 +1054,19 @@
                 radiovfo1.style['color'] = radiovfo1a.style['color'] = 'lightgray';
                 radiovfo2.style['color'] = radiovfo2a.style['color'] = 'lightgray';
             }
-            /*
-            // Update the colors
-            if ((channelB != null) && (radio.State == Radio.RadioState.Connected) && (radio.HtStatus != null) && (radio.HtStatus.double_channel == RadioChannelType.A)) {
-                if ((radio.HtStatus.is_in_rx || radio.HtStatus.is_in_tx) && (radio.HtStatus.curr_ch_id == channelB.channel_id)) {
-                    vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.LightGray;
-                    vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.Salmon;
-                }
-                else {
-                    vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.Salmon;
-                    vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.LightGray;
+
+            for (var i = 0; i < radioChannels.length; i++) {
+                var channelDiv = document.getElementById(`channel${i}`);
+                if (channelDiv) {
+                    channelDiv.style['background-color'] = ((i == radioSettings.channel_a) || ((radioSettings.double_channel == 1) && (i == radioSettings.channel_b))) ? '#EEE8AA' : '';
                 }
             }
-            else {
-                vfo1StatusLabel.ForeColor = vfo1FreqLabel.ForeColor = vfo1Label.ForeColor = Color.LightGray;
-                vfo2StatusLabel.ForeColor = vfo2FreqLabel.ForeColor = vfo2Label.ForeColor = Color.LightGray;
-            }
-            */
         }
 
         function selectChannel(c) {
-            log(`Select Channel: ${c}`);
+            //log(`Select Channel: ${c}`);
+            var data = radioSettings.ToByteArray(c, radioSettings.channel_b, radioSettings.double_channel, radioSettings.scan, radioSettings.squelch_level);
+            SendCommand(RadioCommandGroup.BASIC, RadioBasicCommand.WRITE_SETTINGS, data);
         }
 
         // NEW: Event listener for the modal's send command button
