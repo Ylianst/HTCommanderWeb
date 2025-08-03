@@ -1026,7 +1026,7 @@
 
             if (c1.name_str != "") {
                 radiovfo1.textContent = c1.name_str;
-                radiovfo1a.textContent = (c1.rx_freq / 1000000).toFixed(3) + "Mhz";
+                radiovfo1a.textContent = (c1.rx_freq / 1000000).toFixed(3) + " MHz";
             } else {
                 radiovfo1.textContent = "Empty";
                 radiovfo1a.textContent = "";
@@ -1034,7 +1034,7 @@
 
             if ((radioSettings.double_channel == 1) || (radioSettings.scan)) {
                 radiovfo2.textContent = c2.name_str;
-                radiovfo2a.textContent = (c2.rx_freq / 1000000).toFixed(3) + "Mhz";
+                radiovfo2a.textContent = (c2.rx_freq / 1000000).toFixed(3) + " MHz";
             } else {
                 radiovfo2.textContent = "";
                 radiovfo2a.textContent = "";

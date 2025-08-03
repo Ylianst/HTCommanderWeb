@@ -115,7 +115,9 @@ const RadioNotification = {
     RADIO_STATUS_CHANGED: 8,
     USER_ACTION: 9,
     SYSTEM_EVENT: 10,
-    BSS_SETTINGS_CHANGED: 11
+    BSS_SETTINGS_CHANGED: 11,
+    DATA_TXD: 12,
+    POSITION_CHANGE: 13
 }
 
 const RadioChannelType = {
