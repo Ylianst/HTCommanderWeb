@@ -754,7 +754,7 @@
             try {
                 log('Requesting Bluetooth Device...');
                 bluetoothDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'UV-PRO' }],
+                    filters: [{ name: 'UV-PRO' }, { name: 'VR-N76' }],
                     optionalServices: [RADIO_SERVICE_UUID]
                 });
 
