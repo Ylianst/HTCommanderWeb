@@ -28503,9 +28503,8 @@ OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
 --------------------------------------------------------------------------------
 record
 record_android
-record_ios
+record_darwin
 record_linux
-record_macos
 record_platform_interface
 record_web
 
